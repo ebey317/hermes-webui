@@ -14980,6 +14980,9 @@ def handle_post(handler, parsed) -> bool:
     if parsed.path == "/api/escape/authorize":
         return _handle_escape_authorize(handler, parsed, body)
 
+    if parsed.path == "/api/notify":
+        return _handle_hermex_notify(handler, parsed, body)
+
     if parsed.path == "/api/updates/check":
         settings = load_settings()
         if not settings.get("check_for_updates", True):
@@ -18097,6 +18100,83 @@ def _handle_escape_authorize(handler, parsed, body: dict | None = None):
     except ValueError as exc:
         return bad(handler, _sanitize_error(exc), 404)
     return j(handler, payload)
+
+
+def _handle_hermex_notify(handler, parsed, body: dict | None = None):
+    """Push a native-like notification to Hermex / the WebUI client.
+
+    Accepts POST JSON or form fields:
+        session_id: str   (target Hermes session; required)
+        title:      str   (notification heading; required)
+        body:       str   (message; required)
+        urgency:    str   (optional: low/normal/high; default normal)
+        action:     str    (optional: route/path the client can open on tap)
+        sound:      bool   (optional: play alert sound; default false)
+
+    Non-browser API clients (scripts, ai-controller, master-ai-cli) can call
+    this without CSRF because they send no Origin/Referer headers.
+    Returns JSON with the number of connected clients that received the event.
+    """
+    if body is None:
+        try:
+            body = _read_json_request_body(handler)
+        except ValueError:
+            # Fall back to query/form fields for curl -d usage.
+            qs = parse_qs(parsed.query)
+            body = {
+                "session_id": qs.get("session_id", [""])[0],
+                "title": qs.get("title", [""])[0],
+                "body": qs.get("body", [""])[0],
+                "urgency": qs.get("urgency", [""])[0] or "normal",
+                "action": qs.get("action", [""])[0] or "",
+                "sound": qs.get("sound", [""])[0] in ("1", "true", "yes"),
+            }
+    if not isinstance(body, dict):
+        return bad(handler, "JSON object expected", 400)
+
+    sid = str(body.get("session_id") or "").strip()
+    title = str(body.get("title") or "").strip()
+    msg_body = str(body.get("body") or "").strip()
+    urgency = str(body.get("urgency") or "normal").strip().lower()
+    if urgency not in ("low", "normal", "high"):
+        urgency = "normal"
+
+    if not sid:
+        return bad(handler, "session_id is required", 400)
+    if not title and not msg_body:
+        return bad(handler, "title or body is required", 400)
+
+    payload = {
+        "id": str(uuid.uuid4()),
+        "title": title,
+        "body": msg_body,
+        "urgency": urgency,
+        "action": str(body.get("action") or "").strip(),
+        "sound": bool(body.get("sound", False)),
+        "created_at": time.time(),
+    }
+
+    from api.background_process import _emit_to_session_streams, SESSION_CHANNELS, SESSION_CHANNELS_LOCK
+    try:
+        if sid == "*":
+            # Broadcast to every active session channel. Used when a local
+            # script (e.g. ai-controller) does not know which Hermex/WebUI tab
+            # the user has open.
+            delivered = 0
+            with SESSION_CHANNELS_LOCK:
+                channels = list(SESSION_CHANNELS.keys())
+            for target_sid in channels:
+                delivered += _emit_to_session_streams(target_sid, "hermex_notify", dict(payload))
+                # Give each channel its own payload copy so consumers can't
+                # mutate the shared dict.
+                payload = dict(payload)
+        else:
+            delivered = _emit_to_session_streams(sid, "hermex_notify", payload)
+    except Exception:
+        logger.exception("hermex_notify emit failed for session %s", sid)
+        return bad(handler, "failed to emit notification", 500)
+
+    return j(handler, {"ok": True, "delivered": delivered, "event": "hermex_notify"})
 
 
 def _handle_escape_list_dir(handler, parsed):
