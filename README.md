@@ -5,6 +5,7 @@
 Hermes WebUI is a lightweight, dark-themed web app interface in your browser for [Hermes Agent](https://hermes-agent.nousresearch.com/).
 Full parity with the CLI experience - everything you can do from a terminal, you can do from this UI. No build step, no framework, no bundler. Just Python and vanilla JS.
 
+> **Fork notice:** This is a personal fork of [`NousResearch/hermes-webui`](https://github.com/NousResearch/hermes-webui) maintained by [@ebey317](https://github.com/ebey317). Clone from this repo, not the upstream URL, to get these local changes. Issue links in this README still refer to upstream tracking numbers.
 Layout: three-panel. Left sidebar for sessions and navigation, center for chat,
 right for workspace file browsing. Model, profile, and workspace controls live in
 the **composer footer** — always visible while composing. A circular context ring
@@ -116,7 +117,7 @@ ecosystem. See [docs/why-hermes.md](docs/why-hermes.md) for the full side-by-sid
 Run the repo bootstrap:
 
 ```bash
-git clone https://github.com/nesquena/hermes-webui.git hermes-webui
+git clone https://github.com/ebey317/hermes-webui.git hermes-webui
 cd hermes-webui
 python3 bootstrap.py
 ```
@@ -476,7 +477,7 @@ For a comprehensive setup guide covering all 3 compose files, common failure mod
 The simplest setup: one WebUI container that runs the agent in-process.
 
 ```bash
-git clone https://github.com/nesquena/hermes-webui
+git clone https://github.com/ebey317/hermes-webui
 cd hermes-webui
 cp .env.docker.example .env
 # Edit .env if your host UID isn't 1000 (e.g. macOS where UIDs start at 501)
@@ -498,14 +499,14 @@ docker compose up -d --force-recreate
 ### Manual `docker run` (no compose)
 
 ```bash
-docker pull ghcr.io/nesquena/hermes-webui:latest
+docker pull ghcr.io/ebey317/hermes-webui:latest
 docker run -d \
   -e WANTED_UID=$(id -u) -e WANTED_GID=$(id -g) \
   -v ~/.hermes:/home/hermeswebui/.hermes \
   -e HERMES_WEBUI_STATE_DIR=/home/hermeswebui/.hermes/webui \
   -v ~/workspace:/workspace \
   -p 127.0.0.1:8787:8787 \
-  ghcr.io/nesquena/hermes-webui:latest
+  ghcr.io/ebey317/hermes-webui:latest
 ```
 
 ### Build locally
@@ -835,5 +836,5 @@ Configurable assistant display name, thinking/reasoning block display, and a log
 ## Repo
 
 ```
-git@github.com:nesquena/hermes-webui.git
+git@github.com:ebey317/hermes-webui.git
 ```
